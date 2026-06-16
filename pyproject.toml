@@ -1,0 +1,35 @@
+[build-system]
+requires      = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name        = "disaster-resource-allocation"
+version     = "2.0.0"
+description = "Multi-zone disaster relief AI — OpenEnv submission"
+requires-python = ">=3.10"
+
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.29.0",
+    "pydantic>=2.0.0",
+    "gymnasium>=0.29.0",
+    "numpy>=1.26.0",
+    "openai>=1.14.0",
+    "matplotlib>=3.8.0",
+    "openenv-core>=0.2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0", "ruff", "mypy"]
+rl  = ["stable-baselines3>=2.2.0"]
+
+[project.scripts]
+server        = "server.app:app"
+disaster-train = "main:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
