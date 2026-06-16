@@ -1,0 +1,125 @@
+name: disaster-resource-allocation
+version: "2.0.0"
+description: >
+  A multi-zone disaster response simulation where an AI agent allocates
+  limited emergency resources (food, medical kits, rescue teams) across
+  disaster-affected zones under escalating pressure, random mid-episode
+  events, infrastructure damage, and disease outbreak mechanics.
+
+author: Tanishq Tiwari
+
+tags:
+  - disaster-response
+  - resource-allocation
+  - multi-zone
+  - triage
+  - real-world
+  - llm-agent
+  - curriculum-learning
+
+environment:
+  type: sequential
+  episodes: true
+  max_steps_per_episode: 30
+  stochastic_events: true
+
+observation_space:
+  type: Box
+  dtype: float32
+  shape_formula: "num_zones * 8 + 3"
+  description: >
+    Per zone (8 values, all normalised 0-1): injured, food_need, severity,
+    rescue_blocked, disaster_type_encoded, morale, disease_risk, infra_damage.
+    Global (3 values): food_stock, med_stock, resc_stock.
+
+action_space:
+  type: Discrete
+  size_formula: "3 * num_zones * 3"
+  description: >
+    resource_type (0=food 1=medical 2=rescue) x zone_id x quantity_index (0=10 1=20 2=30 units)
+
+reward:
+  type: float
+  range: [0.0, 1.0]
+  components:
+    coverage_score:   0.40
+    triage_score:     0.25
+    rescue_priority:  0.15
+    efficiency_score: 0.10
+    morale_bonus:     0.05
+    waste_penalty:    "up to -0.15"
+
+tasks:
+  - id: easy
+    difficulty: easy
+    max_steps: 20
+    success_threshold: 0.5
+    grader: eval.graders.EasyGrader
+    description: "3 zones, abundant resources, no escalation, no blocked zones"
+
+  - id: medium
+    difficulty: medium
+    max_steps: 25
+    success_threshold: 0.3
+    grader: eval.graders.MediumGrader
+    description: "5 zones, 5% escalation per step, moderate events, some blocked zones"
+
+  - id: hard
+    difficulty: hard
+    max_steps: 30
+    success_threshold: 0.15
+    grader: eval.graders.HardGrader
+    description: "8 zones, 10% escalation, frequent aftershocks, severe scarcity"
+
+api:
+  reset:
+    method: POST
+    path: /reset
+    body: '{"difficulty": "medium"}'
+    returns: "Full observation dict with all zone states and stock levels"
+  step:
+    method: POST
+    path: /step
+    body: '{"resource_type": 1, "zone_id": 0, "quantity_index": 2}'
+    returns: '{"observation": {...}, "reward": float, "done": bool, "info": {...}}'
+  state:
+    method: GET
+    path: /state
+    returns: "Current world state dict"
+  grade:
+    method: POST
+    path: /grade
+    body: '{"task_id": "medium", "n_episodes": 5, "agent": "rule_based"}'
+    returns: "GraderResult with score, passed, steps_taken, zones_cleared"
+
+setup:
+  python: ">=3.10"
+  install: "pip install -r requirements.txt"
+  run: "python main.py"
+  inference: "python inference.py"
+  docker: "docker build -t disaster-env . && docker run -p 7860:7860 disaster-env"
+
+agents:
+  - name: random
+    class: agents.random_agent.RandomAgent
+    description: "Uniform random baseline"
+  - name: rule_based
+    class: agents.rule_based.RuleBasedAgent
+    description: "Deterministic triage heuristics with disease awareness"
+  - name: llm
+    class: agents.llm_agent.LLMAgent
+    description: "Chain-of-thought LLM with structured observation table"
+  - name: ppo
+    class: agents.ppo_agent.PPOAgent
+    description: "PPO trained via curriculum learning (easy → medium → hard)"
+    requires: "stable-baselines3"
+
+baseline_scores:
+  random_agent:
+    easy:   0.35
+    medium: 0.09
+    hard:   0.05
+  rule_based_agent:
+    easy:   0.59
+    medium: 0.46
+    hard:   0.54
